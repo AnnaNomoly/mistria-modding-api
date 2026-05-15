@@ -517,17 +517,6 @@ namespace MMAPI::Game
 		return pause_status.ToInt64() > 0;
 	}
 
-	/// Returns the current game clock time in seconds from MMAPI::Internal::global_instance.__clock.time.
-	inline int GetCurrentTimeInSeconds()
-	{
-		return static_cast<int>(
-			MMAPI::Internal::global_instance
-				->GetMember("__clock")
-				.GetMember("time")
-				.ToInt64()
-		);
-	}
-
 	/// Returns true when the `room` builtin holds a valid current-room asset_id.
 	///
 	/// Use this as a precondition gate before calling any GML script that implicitly reads
