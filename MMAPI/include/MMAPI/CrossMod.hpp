@@ -15,7 +15,11 @@
 
 namespace MMAPI::CrossMod
 {
-	inline constexpr const char* YYTK_GLOBAL = "__YYTK";
+	namespace Internal
+	{
+		// The GML global key used as the IPC root for inter-mod struct sharing.
+		inline constexpr const char* YYTK_GLOBAL = "__YYTK";
+	}
 
 	/// Returns the global `__YYTK` cross-mod IPC root struct, lazily creating it as a global on
 	/// first call. This is the canonical container mods use to publish state to (and read state
@@ -26,14 +30,14 @@ namespace MMAPI::CrossMod
 		if (!MMAPI::Internal::global_instance)
 			return {};
 
-		if (!MMAPI::Engine::GlobalVariableExists(YYTK_GLOBAL))
+		if (!MMAPI::Engine::GlobalVariableExists(Internal::YYTK_GLOBAL))
 		{
 			YYTK::RValue created;
 			MMAPI::Internal::module_interface->GetRunnerInterface().StructCreate(&created);
-			MMAPI::Engine::GlobalVariableSet(YYTK_GLOBAL, created);
+			MMAPI::Engine::GlobalVariableSet(Internal::YYTK_GLOBAL, created);
 			return created;
 		}
-		return MMAPI::Engine::GlobalVariableGet(YYTK_GLOBAL);
+		return MMAPI::Engine::GlobalVariableGet(Internal::YYTK_GLOBAL);
 	}
 
 	/// Returns the calling mod's sub-struct in `__YYTK`, lazily creating both `__YYTK` and the
@@ -88,9 +92,9 @@ namespace MMAPI::CrossMod
 	inline YYTK::RValue TryGetModStruct(const std::string& mod_name)
 	{
 		if (!MMAPI::Internal::global_instance) return {};
-		if (!MMAPI::Engine::GlobalVariableExists(YYTK_GLOBAL)) return {};
+		if (!MMAPI::Engine::GlobalVariableExists(Internal::YYTK_GLOBAL)) return {};
 
-		YYTK::RValue root = MMAPI::Engine::GlobalVariableGet(YYTK_GLOBAL);
+		YYTK::RValue root = MMAPI::Engine::GlobalVariableGet(Internal::YYTK_GLOBAL);
 		if (root.m_Kind != YYTK::VALUE_OBJECT) return {};
 
 		if (!MMAPI::Engine::StructVariableExists(root, mod_name.c_str())) return {};
