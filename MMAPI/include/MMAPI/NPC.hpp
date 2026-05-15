@@ -8,6 +8,7 @@
 #include "Core.hpp"
 #include "Engine.hpp"
 #include "Hook.hpp"
+#include "Location.hpp"
 #include "Log.hpp"
 #include "Status.hpp"
 
@@ -378,6 +379,44 @@ namespace MMAPI::NPC
 	inline YYTK::RValue GetData(MMAPI::NPC::Ids npc)
 	{
 		return Internal::GetData(GetId(npc));
+	}
+
+	/// Gets the NPC's current location by reading
+	/// `globalInstance.__npc_database[id].location_position.location_id`. This is the location
+	/// the game considers the NPC to be in for schedule/itinerary purposes — it updates as the
+	/// game advances the NPC's schedule and does not require a live `obj_npc` instance in the
+	/// player's current room.
+	/// @param npc The NPC to read.
+	/// @return The NPC's current location, or std::nullopt if the npc data or location id can't
+	///         be resolved (e.g. before the game has populated the NPC database).
+	inline std::optional<MMAPI::Location::Ids> GetLocation(MMAPI::NPC::Ids npc)
+	{
+		YYTK::RValue npc_data = GetData(npc);
+		if (npc_data.m_Kind != YYTK::VALUE_OBJECT)
+			return std::nullopt;
+
+		YYTK::RValue location_position = npc_data.GetMember("location_position");
+		if (location_position.m_Kind != YYTK::VALUE_OBJECT)
+			return std::nullopt;
+
+		YYTK::RValue location_id_rv = location_position.GetMember("location_id");
+		if (!MMAPI::Engine::IsNumeric(location_id_rv))
+			return std::nullopt;
+
+		int location_id = static_cast<int>(location_id_rv.ToInt64());
+		if (location_id < 0 || location_id >= MMAPI::Location::IdCount)
+			return std::nullopt;
+
+		return static_cast<MMAPI::Location::Ids>(location_id);
+	}
+
+	/// Returns true if the NPC's current location matches the given location.
+	/// @param npc The NPC to check.
+	/// @param location The location to compare against.
+	inline bool IsAtLocation(MMAPI::NPC::Ids npc, MMAPI::Location::Ids location)
+	{
+		auto current_location = GetLocation(npc);
+		return current_location.has_value() && *current_location == location;
 	}
 
 	/// Gets the item IDs this NPC likes as gifts.
