@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>MMAPI</id>
+    <version>0.1.0</version>
+    <authors>AnnaNomoly</authors>
+    <description>Mistria Modding API — header-only C++ library for Fields of Mistria YYTK mods. Provides game and player utilities for use with the Aurie/YYTK modding framework.</description>
+    <projectUrl>https://github.com/AnnaNomoly/mistria-modding-api</projectUrl>
+    <repository type="git" url="https://github.com/AnnaNomoly/mistria-modding-api" />
+    <readme>README.md</readme>
+    <license type="expression">AGPL-3.0-only</license>
+    <tags>native fields-of-mistria yytk aurie modding</tags>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <dependencies>
+      <!--
+        nlohmann/json is consumed by MMAPI::Config and MMAPI::ModSave. It's declared here rather than
+        bundled so that consumer projects can pick their own version and so dependency scanners can
+        see the transitive dep. The version below matches the json.hpp currently vendored at
+        MMAPI\include\nlohmann\json.hpp for the sync-flow distribution path — keep them in sync if
+        either gets bumped.
+      -->
+      <dependency id="nlohmann.json" version="3.11.3" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="README.md" target="README.md" />
+    <file src="LICENSE" target="LICENSE" />
+    <file src="build\native\MMAPI.props" target="build\native\MMAPI.props" />
+    <!-- nlohmann is intentionally excluded — it's declared as a NuGet dependency above so
+         consumers get it from the canonical nlohmann.json package rather than a bundled copy. -->
+    <file src="MMAPI\include\**" target="include" exclude="MMAPI\include\nlohmann\**" />
+  </files>
+</package>

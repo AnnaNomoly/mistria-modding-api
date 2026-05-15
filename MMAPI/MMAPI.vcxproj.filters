@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{B1C2D3E4-F5A6-7890-BCDE-F01234567891}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\MMAPI">
+      <UniqueIdentifier>{C2D3E4F5-A6B7-8901-CDEF-012345678912}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\MMAPI\MMAPI.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Animal.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Core.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Dungeon.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Engine.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Game.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Input.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Item.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Mail.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Player.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Spell.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Text.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MMAPI\Types.hpp">
+      <Filter>include\MMAPI</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
