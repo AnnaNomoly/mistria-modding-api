@@ -41,6 +41,7 @@
 #include "NPC.hpp"
 #include "Object.hpp"
 #include "Perk.hpp"
+#include "Pet.hpp"
 #include "Player.hpp"
 #include "Recipe.hpp"
 #include "Renown.hpp"
