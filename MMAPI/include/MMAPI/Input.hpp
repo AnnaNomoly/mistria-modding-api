@@ -225,12 +225,64 @@ namespace MMAPI::Input
 
 			return Result;
 		}
+
+		// Raw GameMaker-builtin wrappers used by the public IsKeybindPressed / IsKeybindDown dispatch.
+		// Kept Internal because the public Keybind-based flow is the supported API surface; mods that
+		// need composition (modifier + main key) build it from public IsKeybind* checks parsed via
+		// TryParseKeybind. If a future case truly needs raw-code access, promote selectively.
+
+		/// Returns true if the keyboard key was pressed this frame.
+		inline bool KeyboardCheckPressed(int key)
+		{
+			YYTK::RValue pressed = MMAPI::Internal::module_interface->CallBuiltin("keyboard_check_pressed", { key });
+			return pressed.ToBoolean();
+		}
+
+		/// Returns true if the keyboard key is currently held down.
+		inline bool KeyboardCheck(int key)
+		{
+			YYTK::RValue down = MMAPI::Internal::module_interface->CallBuiltin("keyboard_check", { key });
+			return down.ToBoolean();
+		}
+
+		/// Returns true if a gamepad is connected in the given slot.
+		inline bool GamepadIsConnected(int gamepad_slot)
+		{
+			YYTK::RValue connected = MMAPI::Internal::module_interface->CallBuiltin("gamepad_is_connected", { gamepad_slot });
+			return connected.ToBoolean();
+		}
+
+		/// Returns the first connected gamepad slot, or -1 if no gamepad is connected.
+		inline int GetFirstConnectedGamepadSlot()
+		{
+			for (int slot = 0; slot < 12; slot++)
+			{
+				if (GamepadIsConnected(slot))
+					return slot;
+			}
+
+			return -1;
+		}
+
+		/// Returns true if the gamepad button was pressed this frame.
+		inline bool GamepadButtonCheckPressed(int gamepad_slot, int button)
+		{
+			YYTK::RValue pressed = MMAPI::Internal::module_interface->CallBuiltin("gamepad_button_check_pressed", { gamepad_slot, button });
+			return pressed.ToBoolean();
+		}
+
+		/// Returns true if the gamepad button is currently held down.
+		inline bool GamepadButtonCheck(int gamepad_slot, int button)
+		{
+			YYTK::RValue down = MMAPI::Internal::module_interface->CallBuiltin("gamepad_button_check", { gamepad_slot, button });
+			return down.ToBoolean();
+		}
 	}
 
 	/// Activates Input hooks. Installs the take_press and check_value hooks so registered callbacks
 	/// can observe input-press results and remap inputs before the game evaluates them. Safe to call
 	/// before any Hooks::* registration — each callback no-ops until a user callback is bound.
-	/// The existing pull-style helpers (KeyboardCheckPressed, GamepadIsConnected, etc.) do not require Enable().
+	/// The pull-style helpers (IsKeybindPressed, IsKeybindDown) do not require Enable().
 	/// @return Status::Success if the hooks are installed (or already were); otherwise a failure status.
 	inline MMAPI::Status Enable()
 	{
@@ -248,63 +300,6 @@ namespace MMAPI::Input
 
 		Internal::enabled = true;
 		return MMAPI::Status::Success;
-	}
-
-	/// Returns true if the keyboard key was pressed this frame.
-	/// @param key The GameMaker virtual key code to check.
-	inline bool KeyboardCheckPressed(int key)
-	{
-		YYTK::RValue pressed = MMAPI::Internal::module_interface->CallBuiltin("keyboard_check_pressed", { key });
-		return pressed.ToBoolean();
-	}
-
-	/// Returns true if the keyboard key is currently held down.
-	/// Use for "while held" semantics (e.g. a modifier like Shift); for press-edge events that fire
-	/// once on the press transition, prefer `KeyboardCheckPressed`.
-	/// @param key The GameMaker virtual key code to check.
-	inline bool KeyboardCheck(int key)
-	{
-		YYTK::RValue down = MMAPI::Internal::module_interface->CallBuiltin("keyboard_check", { key });
-		return down.ToBoolean();
-	}
-
-	/// Returns true if a gamepad is connected in the given slot.
-	/// @param gamepad_slot The gamepad slot to check.
-	inline bool GamepadIsConnected(int gamepad_slot)
-	{
-		YYTK::RValue connected = MMAPI::Internal::module_interface->CallBuiltin("gamepad_is_connected", { gamepad_slot });
-		return connected.ToBoolean();
-	}
-
-	/// Returns the first connected gamepad slot, or -1 if no gamepad is connected.
-	inline int GetFirstConnectedGamepadSlot()
-	{
-		for (int slot = 0; slot < 12; slot++)
-		{
-			if (GamepadIsConnected(slot))
-				return slot;
-		}
-
-		return -1;
-	}
-
-	/// Returns true if the gamepad button was pressed this frame.
-	/// @param gamepad_slot The gamepad slot to check.
-	/// @param button The GameMaker gamepad button constant to check.
-	inline bool GamepadButtonCheckPressed(int gamepad_slot, int button)
-	{
-		YYTK::RValue pressed = MMAPI::Internal::module_interface->CallBuiltin("gamepad_button_check_pressed", { gamepad_slot, button });
-		return pressed.ToBoolean();
-	}
-
-	/// Returns true if the gamepad button is currently held down.
-	/// Use for "while held" semantics; for press-edge events, prefer `GamepadButtonCheckPressed`.
-	/// @param gamepad_slot The gamepad slot to check.
-	/// @param button The GameMaker gamepad button constant to check.
-	inline bool GamepadButtonCheck(int gamepad_slot, int button)
-	{
-		YYTK::RValue down = MMAPI::Internal::module_interface->CallBuiltin("gamepad_button_check", { gamepad_slot, button });
-		return down.ToBoolean();
 	}
 
 	/// Parses a keybind name string (typically from a mod's config file) into a `Keybind` runtime
@@ -341,11 +336,11 @@ namespace MMAPI::Input
 
 		if (keybind.is_gamepad)
 		{
-			int slot = GetFirstConnectedGamepadSlot();
-			return slot >= 0 && GamepadButtonCheckPressed(slot, keybind.code);
+			int slot = Internal::GetFirstConnectedGamepadSlot();
+			return slot >= 0 && Internal::GamepadButtonCheckPressed(slot, keybind.code);
 		}
 
-		return KeyboardCheckPressed(keybind.code);
+		return Internal::KeyboardCheckPressed(keybind.code);
 	}
 
 	/// Returns true if the keybind is currently held down. Held-state variant of `IsKeybindPressed`.
@@ -360,11 +355,11 @@ namespace MMAPI::Input
 
 		if (keybind.is_gamepad)
 		{
-			int slot = GetFirstConnectedGamepadSlot();
-			return slot >= 0 && GamepadButtonCheck(slot, keybind.code);
+			int slot = Internal::GetFirstConnectedGamepadSlot();
+			return slot >= 0 && Internal::GamepadButtonCheck(slot, keybind.code);
 		}
 
-		return KeyboardCheck(keybind.code);
+		return Internal::KeyboardCheck(keybind.code);
 	}
 
 	namespace Hooks
