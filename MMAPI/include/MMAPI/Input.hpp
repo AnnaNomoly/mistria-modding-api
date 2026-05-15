@@ -73,10 +73,10 @@ namespace MMAPI::Input
 		ResetControls       = 43,
 	};
 
-// Push/pop guard for Windows.h macro `DELETE` (access right 0x00010000L in WinNT.h) — without
-// this the enumerator name would expand to a numeric literal mid-declaration and break parsing.
-#pragma push_macro("DELETE")
-#undef DELETE
+	// Push/pop guard for Windows.h macro `DELETE` (access right 0x00010000L in WinNT.h) — without
+	// this the enumerator name would expand to a numeric literal mid-declaration and break parsing.
+	#pragma push_macro("DELETE")
+	#undef DELETE
 
 	/// Strongly-typed keyboard key codes for direct Keybind construction. Values are the underlying
 	/// Win32 VK_* codes, so static_cast<int>(KeyboardKeys::F1) == VK_F1. Use this when the binding is
@@ -132,8 +132,7 @@ namespace MMAPI::Input
 		PAUSE_BREAK = VK_PAUSE,
 	};
 
-#pragma pop_macro("DELETE")
-
+	#pragma pop_macro("DELETE")
 
 	/// Strongly-typed gamepad button codes for direct Keybind construction. Values are GameMaker's
 	/// 0x80xx gamepad button constants. Use this when the binding is known at compile time; for
@@ -209,10 +208,10 @@ namespace MMAPI::Input
 	{
 		inline bool enabled = false;
 
-// Re-guard for the `DELETE` Windows.h macro — the map literal below references
-// KeyboardKeys::DELETE, which the preprocessor would otherwise expand to a numeric literal.
-#pragma push_macro("DELETE")
-#undef DELETE
+		// Re-guard for the `DELETE` Windows.h macro — the map literal below references
+		// KeyboardKeys::DELETE, which the preprocessor would otherwise expand to a numeric literal.
+		#pragma push_macro("DELETE")
+		#undef DELETE
 
 		/// Canonical mapping of keyboard-keybind names (as used in user config files) to typed
 		/// KeyboardKeys enum values. Names are uppercase, use underscores for compound keys
@@ -251,7 +250,7 @@ namespace MMAPI::Input
 			return m;
 		}
 
-#pragma pop_macro("DELETE")
+		#pragma pop_macro("DELETE")
 
 		/// Canonical mapping of gamepad-button names to typed GamepadButtons enum values.
 		/// Names are uppercase and use the "GAMEPAD_*" prefix. Lazily-initialized singleton.
