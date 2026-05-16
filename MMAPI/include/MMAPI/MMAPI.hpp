@@ -28,6 +28,7 @@
 #include "Fish.hpp"
 #include "Game.hpp"
 #include "Gossip.hpp"
+#include "Grid.hpp"
 #include "Infusion.hpp"
 #include "Input.hpp"
 #include "Inventory.hpp"
