@@ -21,6 +21,7 @@
 #include "CrossMod.hpp"
 #include "Cutscene.hpp"
 #include "Damage.hpp"
+#include "Dates.hpp"
 #include "Display.hpp"
 #include "Dungeon.hpp"
 #include "Engine.hpp"
