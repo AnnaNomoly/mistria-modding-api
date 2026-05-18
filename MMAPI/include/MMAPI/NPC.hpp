@@ -177,10 +177,6 @@ namespace MMAPI::NPC
 		// (writing an int there crashes downstream `variable_struct_set` calls).
 		inline std::unordered_map<int, std::string> activity_overrides;
 
-		// Diagnostic flag. When true the begin_activity hook logs every assignment at Info level
-		// with NPC, activity, and decision outcome. Toggle via NPC::SetActivityDiagnosticLogging.
-		inline bool activity_diagnostic_logging = false;
-
 		/// Returns the activity's internal name from `globalInstance.__activity__[id]`. Empty if
 		/// id is out of range.
 		inline std::string ActivityIdToName(int activity_id)
@@ -316,45 +312,14 @@ namespace MMAPI::NPC
 			return Result;
 		}
 
-		/// Formats an RValue compactly for diagnostic logs — kind + brief repr of value.
-		inline std::string DiagDescribeRValue(const YYTK::RValue& v)
-		{
-			switch (v.m_Kind)
-			{
-				case YYTK::VALUE_UNDEFINED: return "<undef>";
-				case YYTK::VALUE_STRING:    return std::string{"\""} + v.ToString() + "\"";
-				case YYTK::VALUE_REAL:      return "real(" + std::to_string(v.ToDouble()) + ")";
-				case YYTK::VALUE_INT32:     return "int32(" + std::to_string(v.ToInt64()) + ")";
-				case YYTK::VALUE_INT64:     return "int64(" + std::to_string(v.ToInt64()) + ")";
-				case YYTK::VALUE_BOOL:      return v.ToBoolean() ? "bool(true)" : "bool(false)";
-				case YYTK::VALUE_OBJECT:
-				{
-					auto members = v.ToMap();
-					std::string out = "{";
-					int shown = 0;
-					for (const auto& [k, val] : members)
-					{
-						if (shown++ > 6) { out += ",..."; break; }
-						out += k + "=";
-						if (val.m_Kind == YYTK::VALUE_STRING) out += "\"" + val.ToString() + "\"";
-						else if (MMAPI::Engine::IsNumeric(val)) out += std::to_string(val.ToInt64());
-						else out += "kind" + std::to_string(static_cast<int>(val.m_Kind));
-						out += ",";
-					}
-					out += "}";
-					return out;
-				}
-				default: return "kind(" + std::to_string(static_cast<int>(v.m_Kind)) + ")";
-			}
-		}
-
 		/// Hook for `request_activity@ActivityHandler@ActivitiesAndRoutines`. Self is the
 		/// ActivityHandler instance; its `npc` member back-references the owning NPC, whose `id`
 		/// is the index aligned with MMAPI::NPC::Ids. This is the script that *chooses* the next
 		/// activity — `begin_activity` is its downstream consumer and is too late to override.
 		///
-		/// Arg[0] is expected to be the activity name (string). The diagnostic logs its actual
-		/// kind so we can verify, and the substitution path writes a string back into arg[0].
+		/// Arg[0] is the integer activity id (index into `globalInstance.__activity__`); the
+		/// substitution path resolves the user-supplied activity name back to that id before
+		/// writing it into arg[0].
 		inline YYTK::RValue& GmlScriptRequestActivityCallback(
 			IN YYTK::CInstance* Self,
 			IN YYTK::CInstance* Other,
@@ -378,21 +343,6 @@ namespace MMAPI::NPC
 			std::string activity_name;
 			if (Arguments && ArgumentCount >= 1 && Arguments[0] && Arguments[0]->m_Kind == YYTK::VALUE_STRING)
 				activity_name = Arguments[0]->ToString();
-
-			// Snapshot Self state pre-trampoline for diagnostic comparison. Only read top-level
-			// activity_handler members that ALWAYS exist (per the globalInstance dump):
-			// activity, request, routine, state. DON'T probe deeper into routine's subkeys — the
-			// previous attempt crashed trying to fetch routine.cursor (which lives on itinerary,
-			// not routine). DiagDescribeRValue is safe on whole structs (uses RValue::ToMap).
-			std::string pre_request  = "<no-self>";
-			std::string pre_activity = "<no-self>";
-			std::string pre_routine  = "<no-self>";
-			if (activity_diagnostic_logging && Self)
-			{
-				pre_request  = DiagDescribeRValue(Self->GetMember("request"));
-				pre_activity = DiagDescribeRValue(Self->GetMember("activity"));
-				pre_routine  = DiagDescribeRValue(Self->GetMember("routine"));
-			}
 
 			MMAPI::NPC::BeforeActivityChangeContext ctx;
 			if (npc_id >= 0)
@@ -443,32 +393,6 @@ namespace MMAPI::NPC
 					Aurie::MmGetHookTrampoline(MMAPI::Internal::self_module, GML_SCRIPT_REQUEST_ACTIVITY)
 				);
 				original(Self, Other, Result, ArgumentCount, Arguments);
-			}
-
-			if (activity_diagnostic_logging)
-			{
-				const char* decision_name = "Allow";
-				if (ctx.m_decision == MMAPI::NPC::BeforeActivityChangeContext::Decision::Deny) decision_name = "Deny";
-				if (ctx.m_decision == MMAPI::NPC::BeforeActivityChangeContext::Decision::Substitute) decision_name = "Substitute";
-
-				std::string arg0_repr = "<no-args>";
-				if (Arguments && ArgumentCount >= 1 && Arguments[0])
-					arg0_repr = DiagDescribeRValue(*Arguments[0]);
-
-				std::string post_activity = "<no-self>";
-				std::string post_state    = "<no-self>";
-				std::string post_request  = "<no-self>";
-				if (Self)
-				{
-					post_activity = DiagDescribeRValue(Self->GetMember("activity"));
-					post_state    = DiagDescribeRValue(Self->GetMember("state"));
-					post_request  = DiagDescribeRValue(Self->GetMember("request"));
-				}
-
-				MMAPI::Log::Info("[diag] request_activity(npc=%d) decision=%s arg0=%s | PRE: request=%s activity=%s routine=%s | POST: activity=%s state=%s request=%s",
-					npc_id, decision_name, arg0_repr.c_str(),
-					pre_request.c_str(), pre_activity.c_str(), pre_routine.c_str(),
-					post_activity.c_str(), post_state.c_str(), post_request.c_str());
 			}
 
 			if (after_activity_change_callback && npc_id >= 0 && call_trampoline)
@@ -943,15 +867,6 @@ namespace MMAPI::NPC
 	inline bool HasActivityOverride(MMAPI::NPC::Ids npc)
 	{
 		return Internal::activity_overrides.contains(static_cast<int>(npc));
-	}
-
-	/// When enabled, the `begin_activity` hook logs every assignment at Info level with NPC,
-	/// activity ids and names, and the decision outcome (Allow / Deny / Substitute). Useful for
-	/// understanding what the routine system is doing while developing activity-related mods.
-	/// Off by default.
-	inline void SetActivityDiagnosticLogging(bool on)
-	{
-		Internal::activity_diagnostic_logging = on;
 	}
 
 	namespace Hooks

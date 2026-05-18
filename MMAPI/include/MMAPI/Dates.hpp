@@ -98,11 +98,6 @@ namespace MMAPI::Dates
 		inline BeforeRunDateCallback before_run_date_callback = nullptr;
 		inline AfterRunDateCallback  after_run_date_callback  = nullptr;
 
-		// Diagnostic flag: when true, every date-script hook logs entry+result at Info level.
-		// Toggle via Dates::SetDiagnosticLogging(true) to investigate the date-trigger flow when
-		// dates aren't appearing in-game.
-		inline bool diagnostic_logging = false;
-
 		// Read arg[0] as date_id and arg[1] as npc_id. Matches run_date's signature, confirmed
 		// empirically (Dates::Start(Beach=1, Reina=24) triggered the beach + Reina cutscene).
 		// NOTE: `outfit_for_date` and `ari_eligible_for_date` use different signatures — see their
@@ -142,21 +137,12 @@ namespace MMAPI::Dates
 			if (Arguments && ArgumentCount >= 2 && Arguments[1] && MMAPI::Engine::IsNumeric(*Arguments[1]))
 				date_id = static_cast<int>(Arguments[1]->ToInt64());
 
-			std::string before = (Result.m_Kind == YYTK::VALUE_STRING) ? Result.ToString() : std::string{};
-			bool overridden = false;
 			if (npc_id >= 0 && date_id >= 0)
 			{
 				auto it = outfit_overrides_by_npc_date.find(PackNpcDate(npc_id, date_id));
 				if (it != outfit_overrides_by_npc_date.end())
-				{
 					Result = it->second.c_str();
-					overridden = true;
-				}
 			}
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] outfit_for_date(npc=%d, date=%d) = '%s' (kind=%d)%s",
-					npc_id, date_id, before.c_str(),
-					static_cast<int>(Result.m_Kind), overridden ? " [OVERRIDDEN]" : "");
 			return Result;
 		}
 
@@ -181,20 +167,12 @@ namespace MMAPI::Dates
 			if (Arguments && ArgumentCount >= 1 && Arguments[0] && MMAPI::Engine::IsNumeric(*Arguments[0]))
 				npc_id = static_cast<int>(Arguments[0]->ToInt64());
 
-			bool before = Result.ToBoolean();
-			bool overridden = false;
 			if (npc_id >= 0)
 			{
 				auto it = ari_eligibility_overrides.find(npc_id);
 				if (it != ari_eligibility_overrides.end())
-				{
 					Result = it->second;
-					overridden = true;
-				}
 			}
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] ari_eligible_for_date(npc=%d) = %s%s",
-					npc_id, before ? "true" : "false", overridden ? " [OVERRIDDEN]" : "");
 			return Result;
 		}
 
@@ -218,20 +196,12 @@ namespace MMAPI::Dates
 			if (Arguments && ArgumentCount >= 2 && Arguments[1] && MMAPI::Engine::IsNumeric(*Arguments[1]))
 				date_id = static_cast<int>(Arguments[1]->ToInt64());
 
-			bool before = Result.ToBoolean();
-			bool overridden = false;
 			if (npc_id >= 0 && date_id >= 0)
 			{
 				auto it = npc_eligibility_overrides.find(PackNpcDate(npc_id, date_id));
 				if (it != npc_eligibility_overrides.end())
-				{
 					Result = it->second;
-					overridden = true;
-				}
 			}
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] npc_date_eligibility(npc=%d, date=%d) = %s%s",
-					npc_id, date_id, before ? "true" : "false", overridden ? " [OVERRIDDEN]" : "");
 			return Result;
 		}
 
@@ -250,26 +220,17 @@ namespace MMAPI::Dates
 
 			// Self is the Npc instance; its `id` member is the NPC index that aligns with
 			// MMAPI::NPC::Ids.
-			bool before = Result.ToBoolean();
-			int npc_id = -1;
-			bool overridden = false;
 			if (Self)
 			{
 				YYTK::RValue id_rv = Self->GetMember("id");
 				if (MMAPI::Engine::IsNumeric(id_rv))
 				{
-					npc_id = static_cast<int>(id_rv.ToInt64());
+					int npc_id = static_cast<int>(id_rv.ToInt64());
 					auto it = can_go_on_dates_overrides.find(npc_id);
 					if (it != can_go_on_dates_overrides.end())
-					{
 						Result = it->second;
-						overridden = true;
-					}
 				}
 			}
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] can_go_on_dates(npc=%d) = %s%s",
-					npc_id, before ? "true" : "false", overridden ? " [OVERRIDDEN]" : "");
 			return Result;
 		}
 
@@ -282,10 +243,6 @@ namespace MMAPI::Dates
 		)
 		{
 			auto [date_id, npc_id] = ExtractDateNpcArgs(ArgumentCount, Arguments);
-
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] run_date(date=%d, npc=%d) entering",
-					date_id, npc_id.value_or(-1));
 
 			if (before_run_date_callback && date_id >= 0)
 			{
@@ -300,10 +257,6 @@ namespace MMAPI::Dates
 				Aurie::MmGetHookTrampoline(MMAPI::Internal::self_module, GML_SCRIPT_RUN_DATE)
 			);
 			original(Self, Other, Result, ArgumentCount, Arguments);
-
-			if (diagnostic_logging)
-				MMAPI::Log::Info("[diag] run_date(date=%d, npc=%d) returned",
-					date_id, npc_id.value_or(-1));
 
 			if (after_run_date_callback && date_id >= 0)
 			{
@@ -549,20 +502,6 @@ namespace MMAPI::Dates
 		YYTK::RValue result;
 		gml_script->m_Functions->m_ScriptFunction(nullptr, nullptr, result, 2, args);
 		return MMAPI::Status::Success;
-	}
-
-	/// When enabled, every date-related script hook (outfit_for_date, ari_eligible_for_date,
-	/// npc_date_eligibility, can_go_on_dates, run_date) logs its call args and return value at
-	/// Info level, plus a `[OVERRIDDEN]` tag when an override map intercepted the result. Intended
-	/// for diagnosing why the date system isn't behaving as expected — when a date offer doesn't
-	/// appear in-game, this reveals which gates the game is actually consulting and what they
-	/// return.
-	///
-	/// Off by default; the hooks themselves are still installed regardless (the flag only
-	/// controls the log spam).
-	inline void SetDiagnosticLogging(bool on)
-	{
-		Internal::diagnostic_logging = on;
 	}
 
 	namespace Hooks
