@@ -183,6 +183,12 @@ namespace MMAPI::Game
 		inline BeforeSaveGameCallback  before_save_game_callback  = nullptr;
 		inline BeforePlayAudioCallback before_play_audio_callback = nullptr;
 
+		// True while the `load_game` trampoline is on the stack. Used by other modules
+		// (e.g. RequestBoard) to distinguish save-load-driven side effects from genuine player
+		// actions — load_game re-registers every active quest by calling `QuestLog.start` on each,
+		// which fires the same hooks as a genuine accept. Read via `MMAPI::Game::IsLoadingSave()`.
+		inline bool is_loading_save = false;
+
 		using AfterJournalMenuOpenCallback   = void(*)();
 		using AfterJournalMenuCloseCallback  = void(*)();
 		using AfterStoreMenuOpenCallback     = void(*)();
@@ -309,7 +315,10 @@ namespace MMAPI::Game
 			const auto original = reinterpret_cast<YYTK::PFUNC_YYGMLScript>(
 				Aurie::MmGetHookTrampoline(MMAPI::Internal::self_module, GML_SCRIPT_LOAD_GAME)
 			);
+
+			is_loading_save = true;
 			original(Self, Other, Result, ArgumentCount, Arguments);
+			is_loading_save = false;
 
 			if (after_load_game_callback)
 			{
@@ -528,6 +537,18 @@ namespace MMAPI::Game
 	/// MMAPI helpers that wrap such scripts call this first and short-circuit safely; mod
 	/// callers can use it too for early-tick guards.
 	/// @return True if `room` is a VALUE_REF (a real asset reference); false otherwise.
+	/// Returns true while the game's `load_game` script is on the call stack. Use this from
+	/// inside other hooks (e.g. QuestLog::start) to distinguish save-load-driven side effects from
+	/// genuine player actions — for instance, save load re-registers every already-active quest
+	/// by calling QuestLog.start on each, which fires the same hooks a fresh accept would.
+	///
+	/// Requires `MMAPI::Game::Enable()` to have been called for the flag to be maintained. Returns
+	/// false outside any save-load window (including before any save has been loaded).
+	inline bool IsLoadingSave()
+	{
+		return Internal::is_loading_save;
+	}
+
 	inline bool IsRoomReady()
 	{
 		YYTK::RValue room_id;
