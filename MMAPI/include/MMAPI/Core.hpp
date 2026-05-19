@@ -20,9 +20,9 @@ namespace MMAPI
 	/// in MMAPI.nuspec — keep them in sync. Available to mods at compile time for feature
 	/// gating (`if constexpr (MMAPI::VersionMajor >= 1) { ... }`) or runtime reporting.
 	inline constexpr int         VersionMajor  = 0;
-	inline constexpr int         VersionMinor  = 1;
+	inline constexpr int         VersionMinor  = 2;
 	inline constexpr int         VersionPatch  = 0;
-	inline constexpr const char* VersionString = "0.1.0";
+	inline constexpr const char* VersionString = "0.2.0";
 
 	namespace Internal
 	{

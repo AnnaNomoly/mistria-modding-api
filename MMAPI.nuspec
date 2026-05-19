@@ -2,7 +2,7 @@
 <package>
   <metadata>
     <id>MMAPI</id>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <authors>AnnaNomoly</authors>
     <description>Mistria Modding API — header-only C++ library for Fields of Mistria YYTK mods. Provides game and player utilities for use with the Aurie/YYTK modding framework.</description>
     <projectUrl>https://github.com/AnnaNomoly/mistria-modding-api</projectUrl>
