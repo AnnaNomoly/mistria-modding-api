@@ -96,7 +96,7 @@ static void PrintStatus(std::string_view room_name)
 	    && day.m_Kind != YYTK::VALUE_UNDEFINED
 	    && year.m_Kind != YYTK::VALUE_UNDEFINED)
 	{
-		int seconds = MMAPI::Game::GetCurrentTimeInSeconds();
+		int seconds = MMAPI::Calendar::GetCurrentTimeInSeconds();
 		int hours   = seconds / 3600;
 		int minutes = (seconds % 3600) / 60;
 		MMAPI::Log::Info("  Calendar : %s %lld (%s), Year %lld, %02d:%02d",
