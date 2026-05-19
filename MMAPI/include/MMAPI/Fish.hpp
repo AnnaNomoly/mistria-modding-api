@@ -6,9 +6,13 @@
 #pragma once
 
 #include "Core.hpp"
+#include "Engine.hpp"
 #include "Hook.hpp"
 #include "Log.hpp"
 #include "Status.hpp"
+
+#include <optional>
+#include <string>
 
 #include "YYToolkit/YYTK_Shared.hpp"
 
@@ -85,6 +89,86 @@ namespace MMAPI::Fish
 
 		Internal::enabled = true;
 		return MMAPI::Status::Success;
+	}
+
+	/// True once the fish's loot data has been attached. Most other Fish
+	/// accessors only succeed after this returns true; the game populates the
+	/// loot a few frames after the obj_fish instance is created. Cheap; safe
+	/// to call every tick as the gate in an OnObjectCall(Objects::Fish, ...)
+	/// callback.
+	/// @param fish A live obj_fish CInstance pointer.
+	/// @return True if `fish.fish_loot` exists on the instance.
+	inline bool HasLoot(YYTK::CInstance* fish)
+	{
+		if (!fish) return false;
+		YYTK::RValue rv = fish->ToRValue();
+		return MMAPI::Engine::StructVariableExists(rv, "fish_loot");
+	}
+
+	/// Returns the live obj_fish's `fish_loot` struct for advanced inspection
+	/// (rarity, quality, any other fields the game stashes there). Returns an
+	/// undefined RValue if `fish` is null or the loot hasn't been populated
+	/// yet - use HasLoot() first to gate.
+	/// @param fish A live obj_fish CInstance pointer.
+	inline YYTK::RValue TryGetLoot(YYTK::CInstance* fish)
+	{
+		if (!fish) return {};
+		YYTK::RValue rv = fish->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "fish_loot")) return {};
+		return rv.GetMember("fish_loot");
+	}
+
+	/// Reads `fish_loot.item.item_id` off the live obj_fish instance: the item
+	/// id the player will receive on a successful catch. Returns std::nullopt
+	/// if `fish` is null, the loot isn't populated yet, or any segment of the
+	/// path is missing or non-numeric.
+	/// @param fish A live obj_fish CInstance pointer.
+	inline std::optional<int> TryGetItemId(YYTK::CInstance* fish)
+	{
+		if (!fish) return std::nullopt;
+		YYTK::RValue rv = fish->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "fish_loot")) return std::nullopt;
+		YYTK::RValue loot = rv.GetMember("fish_loot");
+		if (loot.m_Kind != YYTK::VALUE_OBJECT) return std::nullopt;
+		if (!MMAPI::Engine::StructVariableExists(loot, "item")) return std::nullopt;
+		YYTK::RValue item = loot.GetMember("item");
+		if (item.m_Kind != YYTK::VALUE_OBJECT) return std::nullopt;
+		if (!MMAPI::Engine::StructVariableExists(item, "item_id")) return std::nullopt;
+		YYTK::RValue id = item.GetMember("item_id");
+		if (!MMAPI::Engine::IsNumeric(id)) return std::nullopt;
+		return static_cast<int>(id.ToInt64());
+	}
+
+	/// Returns true exactly once per fish instance: the first time it's called
+	/// for a given obj_fish after that fish has loot populated. Subsequent
+	/// calls (for the same fish, from the same mod) return false.
+	///
+	/// Internally stamps a per-mod struct tag onto the instance (named after
+	/// `MMAPI::Internal::mod_name`, set by MMAPI::Initialize), so multiple
+	/// mods each get independent once-per-fish signals without colliding.
+	///
+	/// Typical usage inside an OnObjectCall(Objects::Fish, ...) callback:
+	///
+	///   if (!MMAPI::Fish::TryMarkProcessed(fish))
+	///       return;
+	///   auto item_id = MMAPI::Fish::TryGetItemId(fish);  // safe: loot present
+	///   // ... do once-per-fish work here ...
+	///
+	/// @param fish A live obj_fish CInstance pointer.
+	/// @return True the first time loot is present and the tag isn't set yet;
+	///         false on every subsequent call (or if fish is null / loot
+	///         isn't populated yet).
+	inline bool TryMarkProcessed(YYTK::CInstance* fish)
+	{
+		if (!fish) return false;
+		YYTK::RValue rv = fish->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "fish_loot")) return false;
+
+		std::string tag = "__mmapi_fish_processed__" + MMAPI::Internal::mod_name;
+		if (MMAPI::Engine::StructVariableExists(rv, tag.c_str())) return false;
+
+		MMAPI::Engine::StructVariableSet(rv, tag.c_str(), YYTK::RValue(true));
+		return true;
 	}
 
 	namespace Hooks

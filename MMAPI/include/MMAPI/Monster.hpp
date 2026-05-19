@@ -12,6 +12,7 @@
 #include "Log.hpp"
 #include "Status.hpp"
 
+#include <cmath>
 #include <optional>
 #include <string>
 
@@ -311,6 +312,169 @@ namespace MMAPI::Monster
 	inline bool IsInState(YYTK::CInstance* monster, StateEnum state)
 	{
 		return GetStateId(monster) == static_cast<int>(state);
+	}
+
+	/// True if the monster instance has `monster_id` populated AND the value is
+	/// numeric (i.e. safe to read as an int via TryGetMonsterId). Cheap; use as a
+	/// gate in OnObjectCall callbacks. Returns false during the spawn-setup window
+	/// where the field may exist transiently as undefined.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline bool HasMonsterId(YYTK::CInstance* monster)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "monster_id")) return false;
+		return MMAPI::Engine::IsNumeric(rv.GetMember("monster_id"));
+	}
+
+	/// Returns the live monster's `monster_id` as a Monster::Ids. Returns nullopt if
+	/// `monster` is null, the field is absent, or the value is non-numeric / out of
+	/// the Ids range.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline std::optional<MMAPI::Monster::Ids> TryGetMonsterId(YYTK::CInstance* monster)
+	{
+		if (!monster) return std::nullopt;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "monster_id")) return std::nullopt;
+		YYTK::RValue id = rv.GetMember("monster_id");
+		if (!MMAPI::Engine::IsNumeric(id)) return std::nullopt;
+		int as_int = static_cast<int>(id.ToInt64());
+		if (as_int < 0 || as_int >= MMAPI::Monster::IdCount) return std::nullopt;
+		return static_cast<MMAPI::Monster::Ids>(as_int);
+	}
+
+	/// True if the monster instance has `hit_points` populated AND the value is
+	/// a finite numeric (not NaN, not infinity). Cheap; safe as a per-tick gate.
+	/// Returns false during spawn-setup transient states where the field may exist
+	/// as undefined or non-finite junk. Mirrors DeepDungeon's HP-readiness check
+	/// pattern.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline bool HasHitPoints(YYTK::CInstance* monster)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "hit_points")) return false;
+		YYTK::RValue hp = rv.GetMember("hit_points");
+		if (!MMAPI::Engine::IsNumeric(hp)) return false;
+		return std::isfinite(hp.ToDouble());
+	}
+
+	/// Returns the monster's current HP, read directly off `monster.hit_points`.
+	/// Returns nullopt if `monster` is null, the field is absent, the value is
+	/// non-numeric, or the value is non-finite (NaN / infinity).
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline std::optional<double> TryGetHitPoints(YYTK::CInstance* monster)
+	{
+		if (!monster) return std::nullopt;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "hit_points")) return std::nullopt;
+		YYTK::RValue hp = rv.GetMember("hit_points");
+		if (!MMAPI::Engine::IsNumeric(hp)) return std::nullopt;
+		double v = hp.ToDouble();
+		if (!std::isfinite(v)) return std::nullopt;
+		return v;
+	}
+
+	/// Sets the monster's current HP by writing directly to `monster.hit_points`.
+	/// Useful for one-shot kills (set to 0), invulnerability sims (set to a large
+	/// value), or arbitrary damage. The caller is responsible for not exceeding the
+	/// monster's max HP if that matters - the game's damage scripts are bypassed
+	/// entirely.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	/// @param value The new HP value.
+	/// @return True on success; false if `monster` is null or `hit_points` is absent.
+	inline bool SetHitPoints(YYTK::CInstance* monster, double value)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "hit_points")) return false;
+		MMAPI::Engine::StructVariableSet(rv, "hit_points", YYTK::RValue(value));
+		return true;
+	}
+
+	/// True if the monster instance has a `config` struct attached. Monsters carry
+	/// a per-spawn config copy with fields like `damage` (and others per type).
+	/// Cheap; safe as a gate before TryGetDamage / SetDamage.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline bool HasConfig(YYTK::CInstance* monster)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+		return MMAPI::Engine::StructVariableExists(rv, "config");
+	}
+
+	/// Returns the monster's current damage value from `monster.config.damage`.
+	/// Returns nullopt if `monster` is null, the config struct is absent, or the
+	/// damage field is missing / non-numeric.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	inline std::optional<double> TryGetDamage(YYTK::CInstance* monster)
+	{
+		if (!monster) return std::nullopt;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "config")) return std::nullopt;
+		YYTK::RValue config = rv.GetMember("config");
+		if (config.m_Kind != YYTK::VALUE_OBJECT) return std::nullopt;
+		if (!MMAPI::Engine::StructVariableExists(config, "damage")) return std::nullopt;
+		YYTK::RValue damage = config.GetMember("damage");
+		if (!MMAPI::Engine::IsNumeric(damage)) return std::nullopt;
+		return damage.ToDouble();
+	}
+
+	/// Sets the monster's outgoing damage by mutating `monster.config.damage`.
+	/// The config struct is held by reference on the instance, so this propagates
+	/// to every place the game reads `config.damage` on that monster.
+	/// @param monster A live obj_monster_* CInstance pointer.
+	/// @param value The new damage value.
+	/// @return True on success; false if `monster` is null, config is missing, or
+	///         `config.damage` is absent.
+	inline bool SetDamage(YYTK::CInstance* monster, double value)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+		if (!MMAPI::Engine::StructVariableExists(rv, "config")) return false;
+		YYTK::RValue config = rv.GetMember("config");
+		if (config.m_Kind != YYTK::VALUE_OBJECT) return false;
+		if (!MMAPI::Engine::StructVariableExists(config, "damage")) return false;
+		MMAPI::Engine::StructVariableSet(config, "damage", YYTK::RValue(value));
+		return true;
+	}
+
+	/// Returns true exactly once per monster instance: the first time it's called
+	/// for a given obj_monster_* after that monster has `hit_points` populated.
+	/// Subsequent calls (for the same monster, from the same mod) return false.
+	///
+	/// Internally stamps a per-mod struct tag onto the instance (named after
+	/// `MMAPI::Internal::mod_name`, set by MMAPI::Initialize), so multiple mods
+	/// each get independent once-per-monster signals without colliding.
+	///
+	/// Typical usage inside an OnObjectCall(Objects::MonsterX, ...) callback:
+	///
+	///   if (!MMAPI::Monster::TryMarkProcessed(monster))
+	///       return;
+	///   auto hp = MMAPI::Monster::TryGetHitPoints(monster);  // safe: HP present
+	///   // ... do once-per-monster work here ...
+	///
+	/// @param monster A live obj_monster_* CInstance pointer.
+	/// @return True the first time HP is present and the tag isn't set yet; false
+	///         on every subsequent call (or if monster is null / HP isn't populated).
+	inline bool TryMarkProcessed(YYTK::CInstance* monster)
+	{
+		if (!monster) return false;
+		YYTK::RValue rv = monster->ToRValue();
+
+		// Full HP-readiness gate, matching HasHitPoints: not only must the field
+		// exist, the value must be numeric and finite. The spawn-setup window can
+		// leave hit_points present but transiently undefined or non-finite.
+		if (!MMAPI::Engine::StructVariableExists(rv, "hit_points")) return false;
+		YYTK::RValue hp = rv.GetMember("hit_points");
+		if (!MMAPI::Engine::IsNumeric(hp)) return false;
+		if (!std::isfinite(hp.ToDouble())) return false;
+
+		std::string tag = "__mmapi_monster_processed__" + MMAPI::Internal::mod_name;
+		if (MMAPI::Engine::StructVariableExists(rv, tag.c_str())) return false;
+
+		MMAPI::Engine::StructVariableSet(rv, tag.c_str(), YYTK::RValue(true));
+		return true;
 	}
 
 	namespace Hooks

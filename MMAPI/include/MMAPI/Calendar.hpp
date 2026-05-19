@@ -68,7 +68,7 @@ namespace MMAPI::Calendar
 		int64_t m_old_time = 0;
 
 		/// Returns the clock time (in seconds) captured before the game's update@Clock@Clock script ran.
-		/// Pair with MMAPI::Game::GetCurrentTimeInSeconds() inside an AfterClockUpdate callback to compute
+		/// Pair with GetCurrentTimeInSeconds() inside an AfterClockUpdate callback to compute
 		/// the per-tick delta (e.g. how much the clock advanced this frame).
 		int64_t GetOldTime() const { return m_old_time; }
 	};
@@ -364,11 +364,28 @@ namespace MMAPI::Calendar
 		return static_cast<int>(year.ToInt64()) + 1;
 	}
 
+	/// Returns the current in-game clock time in seconds, read directly from
+	/// `globalInstance.__clock.time`. Use this for time-of-day checks, deadline comparisons,
+	/// or to compute the per-tick delta inside an AfterClockUpdate callback (pair with
+	/// `ClockUpdateContext::GetOldTime()`).
+	///
+	/// @note Safe to call without MMAPI::Calendar::Enable() — reads a global directly,
+	///       does not depend on Calendar's hook latch.
+	inline int GetCurrentTimeInSeconds()
+	{
+		return static_cast<int>(
+			MMAPI::Internal::global_instance
+				->GetMember("__clock")
+				.GetMember("time")
+				.ToInt64()
+		);
+	}
+
 	/// Returns true if the current game clock time is night.
 	/// Night starts at 8 PM, matching the game's daytime/nighttime split.
 	inline bool IsNight()
 	{
-		return MMAPI::Game::GetCurrentTimeInSeconds() >= NightStartTimeInSeconds;
+		return GetCurrentTimeInSeconds() >= NightStartTimeInSeconds;
 	}
 
 	/// Returns true if the current game clock time is day.
@@ -390,7 +407,7 @@ namespace MMAPI::Calendar
 	/// @param end_seconds Exclusive end of the range, in game-clock seconds.
 	inline bool IsInTimeRange(int start_seconds, int end_seconds)
 	{
-		int current = MMAPI::Game::GetCurrentTimeInSeconds();
+		int current = GetCurrentTimeInSeconds();
 		return current >= start_seconds && current < end_seconds;
 	}
 
@@ -408,7 +425,7 @@ namespace MMAPI::Calendar
 		/// Registers a callback that runs before the game's `update@Clock@Clock` script.
 		/// The callback takes no arguments and is intended for per-tick state preparation that must complete
 		/// before the game advances the clock. To inspect the pre-original time, read it via
-		/// `MMAPI::Game::GetCurrentTimeInSeconds()` (or directly via `globalInstance.__clock.time`).
+		/// `GetCurrentTimeInSeconds()` (or directly via `globalInstance.__clock.time`).
 		/// @param callback A parameterless function called before each clock update.
 		/// @return Status::Success if the hook was installed; Status::AlreadyRegistered if a callback is already registered; otherwise a failure status.
 		inline MMAPI::Status BeforeClockUpdate(Internal::BeforeClockUpdateCallback callback)
@@ -425,7 +442,7 @@ namespace MMAPI::Calendar
 		/// Registers a callback that runs after the game's `update@Clock@Clock` script.
 		/// The context exposes `ctx.GetOldTime()` — the clock time (seconds) captured between any
 		/// BeforeClockUpdate callback and the original script. Compare it to
-		/// `MMAPI::Game::GetCurrentTimeInSeconds()` to determine how much the clock advanced this tick.
+		/// `GetCurrentTimeInSeconds()` to determine how much the clock advanced this tick.
 		/// @param callback A function called with a `MMAPI::Calendar::ClockUpdateContext`.
 		/// @return Status::Success if the hook was installed; Status::AlreadyRegistered if a callback is already registered; otherwise a failure status.
 		inline MMAPI::Status AfterClockUpdate(Internal::AfterClockUpdateCallback callback)

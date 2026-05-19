@@ -460,18 +460,45 @@ namespace MMAPI::Location
 		return result.ToString();
 	}
 
-	/// Gets the current location, resolved from the player's current GM room via pre-computed lookup maps.
+	/// Gets the current location, resolved from the player's current GM room.
+	///
+	/// Primary source is `Internal::current_gm_room_name`, populated by the `goto_gm_room` hook.
+	/// Save-load doesn't route through that script (the load takes a different room-setup path), so
+	/// right after loading a save the hook-tracked name is empty even though the player is clearly
+	/// in a room. To close that gap, this falls back to reading the `room` builtin directly and
+	/// resolving its name via `room_get_name` — same data the hook would write, just sourced from
+	/// the engine on demand.
+	///
 	/// @attention Requires MMAPI::Location::Enable() to have been called.
 	/// @param location The current location.
-	/// @return True if the current GM room maps to a known location; false if no GM-room transition has been observed yet.
+	/// @return True if the current GM room maps to a known location; false if `room` is unset
+	///         (pre-title-screen / mid-transition) or resolves to an unrecognized room name.
 	inline bool TryGetCurrentLocation(MMAPI::Location::Ids& location)
 	{
 		MMAPI_REQUIRE_ENABLED("Location", false);
 
-		if (Internal::current_gm_room_name.empty())
+		std::string room_name = Internal::current_gm_room_name;
+
+		// Fallback for save-load and other paths that don't go through goto_gm_room: read the
+		// `room` builtin directly. It comes back as VALUE_REF for a valid room, VALUE_UNDEFINED /
+		// VALUE_UNSET during pre-load transitions; room_get_name handles the latter and we ignore
+		// undefined results below.
+		if (room_name.empty())
+		{
+			YYTK::RValue room_id;
+			Aurie::AurieStatus status = MMAPI::Internal::module_interface->GetBuiltin("room", nullptr, NULL_INDEX, room_id);
+			if (Aurie::AurieSuccess(status) && room_id.m_Kind == YYTK::VALUE_REF)
+			{
+				YYTK::RValue room_name_rv = MMAPI::Internal::module_interface->CallBuiltin("room_get_name", { room_id });
+				if (room_name_rv.m_Kind != YYTK::VALUE_UNDEFINED && room_name_rv.m_Kind != YYTK::VALUE_UNSET)
+					room_name = room_name_rv.ToString();
+			}
+		}
+
+		if (room_name.empty())
 			return false;
 
-		auto it = Internal::gm_room_name_to_location_id_map.find(Internal::current_gm_room_name);
+		auto it = Internal::gm_room_name_to_location_id_map.find(room_name);
 		if (it == Internal::gm_room_name_to_location_id_map.end())
 			return false;
 
