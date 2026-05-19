@@ -63,8 +63,10 @@ namespace MMAPI
 		// of how subsequent logging is configured.
 		if (module_interface)
 		{
-			char banner[96];
-			std::snprintf(banner, sizeof(banner), ">>> Using MMAPI version %s <<<", MMAPI::VersionString);
+			char banner[128];
+			std::snprintf(banner, sizeof(banner), "%s is using MMAPI version %s",
+				MMAPI::Internal::mod_name.c_str(),
+				MMAPI::VersionString);
 
 			// Console — always, regardless of Sinks bitmask.
 			module_interface->Print(YYTK::CM_LIGHTGREEN,
