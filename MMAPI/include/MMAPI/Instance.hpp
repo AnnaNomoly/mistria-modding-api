@@ -153,7 +153,7 @@ namespace MMAPI::Instance
 				case MMAPI::Instance::Objects::Bug:                return "obj_bug";
 				case MMAPI::Instance::Objects::Door:               return "obj_door";
 				case MMAPI::Instance::Objects::FarmBell:           return "obj_farm_bell";
-				case MMAPI::Instance::Objects::Fish:               return "obj_fish";
+				case MMAPI::Instance::Objects::Fish:               return "obj_fishy";
 				case MMAPI::Instance::Objects::WorldFountain:      return "obj_world_fountain";
 				case MMAPI::Instance::Objects::Monster:            return "obj_monster";
 				case MMAPI::Instance::Objects::MonsterMimic:       return "obj_monster_mimic";
