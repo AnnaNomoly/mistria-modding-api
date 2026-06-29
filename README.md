@@ -1,4 +1,7 @@
-# MMAPI
+# (Legacy) MMAPI
+
+> [!CAUTION]
+> This repository has been **deprecated and archived**. It contains code for the old "legacy" game engine. It will no longer receive updates. For current MMAPI see my [mistweave](https://github.com/AnnaNomoly/mistweave) repository instead.
 
 MMAPI is an unofficial, header-only C++ modding API for [Fields of Mistria](https://www.fieldsofmistria.com/) mods built with [YYToolkit](https://github.com/AurieFramework/YYToolkit) and [Aurie](https://github.com/AurieFramework/Aurie).
 
